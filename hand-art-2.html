@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>非遗剪纸手势交互绘图系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { width: 100%; height: 100%; }
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            font-family: 'Microsoft YaHei', 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        .main-container {
+            display: flex;
+            gap: 30px;
+            max-width: 1800px;
+            width: 100%;
+            padding: 20px;
+        }
+        .canvas-wrapper {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 0 60px rgba(220, 20, 60, 0.4), inset 0 0 40px rgba(0, 0, 0, 0.5);
+            background: #000;
+            flex: 1;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: transparent;
+        }
+        #video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1);
+            opacity: 1;
+            pointer-events: none;
+            z-index: 0;
+        }
+        #bgCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+        #drawCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            cursor: crosshair;
+            z-index: 2;
+        }
+        #uiCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 3;
+        }
+        .control-panel {
+            width: 380px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .panel {
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid rgba(220, 20, 60, 0.6);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            flex-shrink: 0;
+        }
+        .panel h3 {
+            color: #dc143c;
+            margin-bottom: 15px;
+            font-size: 16px;
+            border-bottom: 2px solid rgba(220, 20, 60, 0.3);
+            padding-bottom: 10px;
+        }
+        .status-display {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: rgba(0, 255, 0, 0.1);
+            border-radius: 6px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        .status-value {
+            color: #00ff00;
+        }
+        .gesture-indicator {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .gesture-item {
+            padding: 10px;
+            background: rgba(100, 100, 100, 0.3);
+            border-radius: 6px;
+            text-align: center;
+            font-size: 12px;
+            border: 2px solid transparent;
+            transition: all 0.3s;
+        }
+        .gesture-item.active {
+            background: rgba(0, 255, 0, 0.2);
+            border-color: #00ff00;
+            color: #00ff00;
+            box-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+        }
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        button {
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #dc143c, #ff1493);
+            color: #fff;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(220, 20, 60, 0.5);
+        }
+        .color-selector {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+            margin: 10px 0;
+        }
+        .color-btn {
+            width: 100%;
+            aspect-ratio: 1;
+            border-radius: 50%;
+            border: 3px solid transparent;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .color-btn.active {
+            border-color: #fff;
+            box-shadow: 0 0 15px currentColor;
+        }
+        .slider-container {
+            margin: 10px 0;
+        }
+        .slider-container label {
+            display: block;
+            font-size: 13px;
+            margin-bottom: 5px;
+            color: #aaa;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(220, 20, 60, 0.3);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #dc143c;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(220, 20, 60, 0.6);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #dc143c;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 10px rgba(220, 20, 60, 0.6);
+        }
+        select {
+            width: 100%;
+            padding: 8px;
+            background: rgba(220, 20, 60, 0.2);
+            color: #fff;
+            border: 1px solid rgba(220, 20, 60, 0.5);
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px 0;
+        }
+        .title {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            font-size: 24px;
+            margin: 0;
+            z-index: 10;
+            color: #ff1493;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <script src="hands.js"></script>
+
+    <div class="main-container">
+        <div class="canvas-wrapper">
+            <div class="title">✂️ 非遗剪纸</div>
+            <div class="canvas-container">
+                <video id="video" playsinline></video>
+                <canvas id="bgCanvas"></canvas>
+                <canvas id="drawCanvas"></canvas>
+                <canvas id="uiCanvas"></canvas>
+            </div>
+        </div>
+
+        <div class="control-panel">
+            <div class="panel">
+                <h3>📊 实时状态</h3>
+                <div class="status-display">
+                    <span>识别状态：</span>
+                    <span class="status-value" id="detectionStatus">等待中...</span>
+                </div>
+                <div class="status-display">
+                    <span>当前模式：</span>
+                    <span class="status-value" id="modeStatus">准备中...</span>
+                </div>
+                <div class="status-display">
+                    <span>手势：</span>
+                    <span class="status-value" id="gestureStatus">-</span>
+                </div>
+
+                <div style="margin-top: 15px;">
+                    <div style="font-size: 12px; color: #aaa; margin-bottom: 8px;">当前检测的手势：</div>
+                    <div class="gesture-indicator">
+                        <div class="gesture-item" id="gesture-fist">✊ 握拳<br/><small>（镂空）</small></div>
+                        <div class="gesture-item" id="gesture-open">✋ 摊手<br/><small>（填充）</small></div>
+                        <div class="gesture-item" id="gesture-pinch">✌️ 捏合<br/><small>（绘制）</small></div>
+                        <div class="gesture-item" id="gesture-two">☝️ 双指<br/><small>（变换）</small></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>🎨 绘图设置</h3>
+                <div style="font-size: 12px; color: #aaa; margin-bottom: 10px;">选择颜色：</div>
+                <div class="color-selector">
+                    <button class="color-btn active" style="background: #dc143c;" data-color="#dc143c" title="深红"></button>
+                    <button class="color-btn" style="background: #ff1493;" data-color="#ff1493" title="紫红"></button>
+                    <button class="color-btn" style="background: #ff4500;" data-color="#ff4500" title="橙红"></button>
+                    <button class="color-btn" style="background: #ffd700;" data-color="#ffd700" title="金色"></button>
+                </div>
+
+                <div class="slider-container">
+                    <label for="brushSize">笔刷大小: <span id="sizeValue">15</span>px</label>
+                    <input type="range" id="brushSize" min="2" max="80" value="15">
+                </div>
+
+                <div class="slider-container">
+                    <label for="opacity">不透明度: <span id="opacityValue">100</span>%</label>
+                    <input type="range" id="opacity" min="0" max="100" value="100">
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>✨ 效果设置</h3>
+                <div style="margin: 10px 0;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="symmetry" checked>
+                        <span style="font-size: 13px;">对称模式</span>
+                    </label>
+                </div>
+                <div style="margin: 10px 0;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" id="glow" checked>
+                        <span style="font-size: 13px;">发光效果</span>
+                    </label>
+                </div>
+                <div class="slider-container">
+                    <label for="symmetryLines">对称线数: <span id="symmetryValue">4</span></label>
+                    <input type="range" id="symmetryLines" min="2" max="8" value="4">
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>💾 操作</h3>
+                <div class="button-group">
+                    <button onclick="clearCanvas()">🗑️ 清除</button>
+                    <button onclick="undoDrawing()">↶ 撤销</button>
+                </div>
+                <div class="button-group" style="margin-top: 10px;">
+                    <button onclick="savePNG()">💾 保存PNG</button>
+                    <button onclick="saveSVG()">📐 保存SVG</button>
+                </div>
+                <div class="button-group" style="margin-top: 10px;">
+                    <button onclick="loadPattern()">📂 加载纹样</button>
+                    <button onclick="generateSymmetry()">🔄 生成对称</button>
+                </div>
+                <div style="margin-top: 15px; padding: 10px; background: rgba(0, 255, 0, 0.1); border-radius: 6px; font-size: 12px; color: #aaa;">
+                    <p style="margin-bottom: 8px; color: #00ff00; font-weight: bold;">📋 使用说明</p>
+                    <p>✊ 握拳=镂空（黑色）</p>
+                    <p>✋ 摊手=填充（红色）</p>
+                    <p>☝️ 单指绘制轮廓</p>
+                    <p>✌️ 双指缩放旋转</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const drawCanvas = document.getElementById('drawCanvas');
+        const bgCanvas = document.getElementById('bgCanvas');
+        const uiCanvas = document.getElementById('uiCanvas');
+        let drawCtx = drawCanvas.getContext('2d', { willReadFrequently: true });
+        let bgCtx = bgCanvas.getContext('2d');
+        let uiCtx = uiCanvas.getContext('2d');
+
+        let hands;
+        let cameraRunning = false;
+        let isDrawing = false;
+        let currentColor = '#dc143c';
+        let brushSize = 15;
+        let opacity = 1.0;
+        let symmetryEnabled = true;
+        let symmetryLines = 4;
+        let glowEnabled = true;
+        let lastX = 0, lastY = 0;
+        let canvasWidth = 800, canvasHeight = 600;
+        let drawingHistory = [];
+
+        let leftHandLandmarks = null;
+        let rightHandLandmarks = null;
+        let currentGesture = '';
+        let lastTwoFingerDistance = 0;
+        let lastRightHandPos = null;
+        let lastLeftHandPos = null;
+        let isProcessing = false;
+
+        async function initialize() {
+            try {
+                document.getElementById('detectionStatus').textContent = '📦 加载模型...';
+                document.getElementById('detectionStatus').style.color = '#ffff00';
+                
+                await setupMediaPipe();
+                
+                setupCanvases();
+                setupEventListeners();
+                
+                document.getElementById('detectionStatus').textContent = '🔘 点击按钮启动摄像头';
+                document.getElementById('detectionStatus').style.color = '#00ffff';
+                
+                const startBtn = document.createElement('button');
+                startBtn.textContent = '📷 启动摄像头';
+                startBtn.style.cssText = 'position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);padding:20px 40px;font-size:18px;z-index:100;border-radius:12px;background:linear-gradient(135deg,#00ffff,#00ff88);color:#000;font-weight:bold;cursor:pointer;box-shadow:0 0 30px rgba(0,255,255,0.5);';
+                startBtn.onclick = async () => {
+                    startBtn.remove();
+                    await startCameraAndRun();
+                };
+                document.querySelector('.canvas-container').appendChild(startBtn);
+                
+            } catch (error) {
+                console.error('初始化失败:', error);
+                console.log('window.vision:', window.vision);
+                document.getElementById('detectionStatus').textContent = '❌ 初始化失败: ' + error.message;
+                document.getElementById('detectionStatus').style.color = '#ff4444';
+            }
+        }
+
+        async function startCameraAndRun() {
+            try {
+                document.getElementById('detectionStatus').textContent = '📷 启动摄像头...';
+                document.getElementById('detectionStatus').style.color = '#ffff00';
+                
+                await setupCamera();
+                
+                document.getElementById('detectionStatus').textContent = '✓ 运行中';
+                document.getElementById('detectionStatus').style.color = '#00ff00';
+                
+                animate();
+            } catch (error) {
+                console.error('启动摄像头失败:', error);
+                
+                if (error.message.includes('Permission denied')) {
+                    document.getElementById('detectionStatus').textContent = '❌ 摄像头权限被拒绝';
+                    document.getElementById('detectionStatus').style.color = '#ffaa00';
+                    alert('摄像头访问被拒绝！\n\n请按照以下步骤操作：\n1. 点击浏览器地址栏左侧的锁图标\n2. 在弹出的菜单中找到摄像头权限\n3. 将权限设置为"允许"\n4. 点击刷新按钮重试');
+                } else {
+                    document.getElementById('detectionStatus').textContent = '❌ 启动失败: ' + error.message;
+                    document.getElementById('detectionStatus').style.color = '#ff4444';
+                }
+            }
+        }
+
+        async function setupCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+                    audio: false
+                });
+                
+                video.srcObject = stream;
+
+                return new Promise((resolve) => {
+                    video.onloadedmetadata = () => {
+                        canvasWidth = video.videoWidth || 800;
+                        canvasHeight = video.videoHeight || 600;
+                        video.play().then(() => {
+                            cameraRunning = true;
+                            drawCanvas.width = bgCanvas.width = uiCanvas.width = canvasWidth;
+                            drawCanvas.height = bgCanvas.height = uiCanvas.height = canvasHeight;
+                            drawCtx = drawCanvas.getContext('2d', { willReadFrequently: true });
+                            bgCtx = bgCanvas.getContext('2d');
+                            uiCtx = uiCanvas.getContext('2d');
+                            console.log('视频元素:', video);
+                            console.log('视频元素样式:', getComputedStyle(video));
+                            console.log('视频元素可见性:', video.offsetParent);
+                            console.log('视频元素尺寸:', video.offsetWidth, 'x', video.offsetHeight);
+                            console.log('视频元素实际尺寸:', video.videoWidth, 'x', video.videoHeight);
+                            console.log('canvas-wrapper尺寸:', document.querySelector('.canvas-wrapper').offsetWidth, 'x', document.querySelector('.canvas-wrapper').offsetHeight);
+                            console.log('canvas-container尺寸:', document.querySelector('.canvas-container').offsetWidth, 'x', document.querySelector('.canvas-container').offsetHeight);
+                            resolve();
+                        }).catch(err => {
+                            throw new Error('视频播放失败: ' + err.message);
+                        });
+                    };
+                });
+            } catch (error) {
+                throw new Error('摄像头访问失败: ' + error.message);
+            }
+        }
+
+        function setupCanvases() {
+            drawCanvas.width = bgCanvas.width = uiCanvas.width = canvasWidth;
+            drawCanvas.height = bgCanvas.height = uiCanvas.height = canvasHeight;
+            
+            saveDrawingState();
+        }
+
+        async function setupMediaPipe() {
+            if (!window.Hands) {
+                throw new Error('MediaPipe Hands 库未加载，请检查网络连接');
+            }
+
+            return new Promise((resolve, reject) => {
+                hands = new window.Hands({
+                    locateFile: (file) => file
+                });
+
+                hands.setOptions({
+                    maxNumHands: 2,
+                    modelComplexity: 0,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+
+                hands.onResults(onHandsResults);
+                
+                hands.initialize().then(() => {
+                    resolve();
+                }).catch(err => {
+                    reject(err);
+                });
+            });
+        }
+
+        function setupEventListeners() {
+            document.getElementById('brushSize').addEventListener('change', (e) => {
+                brushSize = parseInt(e.target.value);
+                document.getElementById('sizeValue').textContent = brushSize;
+            });
+
+            document.getElementById('opacity').addEventListener('change', (e) => {
+                opacity = parseInt(e.target.value) / 100;
+                document.getElementById('opacityValue').textContent = parseInt(e.target.value);
+            });
+
+            document.getElementById('symmetry').addEventListener('change', (e) => {
+                symmetryEnabled = e.target.checked;
+            });
+
+            document.getElementById('symmetryLines').addEventListener('change', (e) => {
+                symmetryLines = parseInt(e.target.value);
+                document.getElementById('symmetryValue').textContent = symmetryLines;
+            });
+
+            document.getElementById('glow').addEventListener('change', (e) => {
+                glowEnabled = e.target.checked;
+            });
+
+            document.querySelectorAll('.color-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentColor = this.dataset.color;
+                });
+            });
+        }
+
+        function onHandsResults(results) {
+            leftHandLandmarks = null;
+            rightHandLandmarks = null;
+
+            if (results.multiHandLandmarks && results.multiHandedness) {
+                for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                    const landmarks = results.multiHandLandmarks[i];
+                    const handedness = results.multiHandedness[i].label;
+
+                    if (handedness === 'Left') {
+                        leftHandLandmarks = landmarks;
+                    } else {
+                        rightHandLandmarks = landmarks;
+                    }
+                }
+            }
+
+            detectGestures();
+            processDrawing();
+        }
+
+        function detectGestures() {
+            currentGesture = '';
+            document.querySelectorAll('.gesture-item').forEach(el => el.classList.remove('active'));
+
+            if (rightHandLandmarks) {
+                if (isFist(rightHandLandmarks)) {
+                    currentGesture = 'fist';
+                    document.getElementById('gesture-fist').classList.add('active');
+                    currentColor = '#000000';
+                } else if (isOpenPalm(rightHandLandmarks)) {
+                    currentGesture = 'open';
+                    document.getElementById('gesture-open').classList.add('active');
+                    currentColor = '#dc143c';
+                } else if (isPinching(rightHandLandmarks)) {
+                    currentGesture = 'pinch';
+                    document.getElementById('gesture-pinch').classList.add('active');
+                } else {
+                    currentGesture = 'idle';
+                }
+            }
+
+            if (leftHandLandmarks && rightHandLandmarks) {
+                const distance = getDistance(rightHandLandmarks[9], leftHandLandmarks[9]);
+                if (distance < 0.3) {
+                    currentGesture = 'two-finger';
+                    document.getElementById('gesture-two').classList.add('active');
+                    handleTwoFingerGesture();
+                }
+                lastTwoFingerDistance = distance;
+            }
+
+            document.getElementById('gestureStatus').textContent = currentGesture || '-';
+            document.getElementById('modeStatus').textContent = isDrawing ? '✏️ 绘制中' : '⏸️ 暂停';
+        }
+
+        function isFist(landmarks) {
+            const fingerTips = [8, 12, 16, 20];
+            const wrist = landmarks[0];
+            let closedCount = 0;
+
+            for (let tip of fingerTips) {
+                const distance = getDistance(wrist, landmarks[tip]);
+                if (distance < 0.15) closedCount++;
+            }
+
+            return closedCount >= 3;
+        }
+
+        function isOpenPalm(landmarks) {
+            const fingerTips = [8, 12, 16, 20];
+            const wrist = landmarks[0];
+            let openCount = 0;
+
+            for (let tip of fingerTips) {
+                const distance = getDistance(wrist, landmarks[tip]);
+                if (distance > 0.25) openCount++;
+            }
+
+            return openCount >= 3;
+        }
+
+        function isPinching(landmarks) {
+            const thumbTip = landmarks[4];
+            const indexTip = landmarks[8];
+            const distance = getDistance(thumbTip, indexTip);
+            return distance < 0.05;
+        }
+
+        function getDistance(p1, p2) {
+            const dx = p2.x - p1.x;
+            const dy = p2.y - p1.y;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        function handleTwoFingerGesture() {
+            if (!lastRightHandPos || !lastLeftHandPos) {
+                lastRightHandPos = { x: rightHandLandmarks[9].x, y: rightHandLandmarks[9].y };
+                lastLeftHandPos = { x: leftHandLandmarks[9].x, y: leftHandLandmarks[9].y };
+                return;
+            }
+
+            const currDist = getDistance(rightHandLandmarks[9], leftHandLandmarks[9]);
+            const prevDist = getDistance(lastRightHandPos, lastLeftHandPos);
+            
+            lastRightHandPos = { x: rightHandLandmarks[9].x, y: rightHandLandmarks[9].y };
+            lastLeftHandPos = { x: leftHandLandmarks[9].x, y: leftHandLandmarks[9].y };
+        }
+
+        function processDrawing() {
+            if (!rightHandLandmarks) return;
+
+            const indexTip = rightHandLandmarks[8];
+            const x = indexTip.x * canvasWidth;
+            const y = indexTip.y * canvasHeight;
+
+            if (isPinching(rightHandLandmarks) && !isFist(rightHandLandmarks)) {
+                isDrawing = true;
+                drawStroke(x, y);
+            } else {
+                isDrawing = false;
+                lastX = 0;
+                lastY = 0;
+            }
+        }
+
+        function drawStroke(x, y) {
+            if (lastX === 0) lastX = x;
+            if (lastY === 0) lastY = y;
+
+            const color = currentColor;
+            drawLine(lastX, lastY, x, y, color, brushSize, opacity);
+
+            if (symmetryEnabled && symmetryLines > 1) {
+                const cx = canvasWidth / 2;
+                const cy = canvasHeight / 2;
+
+                for (let i = 1; i < symmetryLines; i++) {
+                    const angle = (Math.PI * 2 / symmetryLines) * i;
+
+                    const x1 = cx + (lastX - cx) * Math.cos(angle) - (lastY - cy) * Math.sin(angle);
+                    const y1 = cy + (lastX - cx) * Math.sin(angle) + (lastY - cy) * Math.cos(angle);
+                    const x2 = cx + (x - cx) * Math.cos(angle) - (y - cy) * Math.sin(angle);
+                    const y2 = cy + (x - cx) * Math.sin(angle) + (y - cy) * Math.cos(angle);
+
+                    drawLine(x1, y1, x2, y2, color, brushSize, opacity);
+                }
+            }
+
+            if (glowEnabled) {
+                drawGlow(x, y, color, brushSize);
+            }
+
+            lastX = x;
+            lastY = y;
+        }
+
+        function drawLine(x1, y1, x2, y2, color, size, alpha) {
+            drawCtx.save();
+            drawCtx.strokeStyle = color;
+            drawCtx.lineWidth = size;
+            drawCtx.lineCap = 'round';
+            drawCtx.lineJoin = 'round';
+            drawCtx.globalAlpha = alpha;
+
+            if (glowEnabled) {
+                drawCtx.shadowBlur = size * 2;
+                drawCtx.shadowColor = color;
+            }
+
+            drawCtx.beginPath();
+            drawCtx.moveTo(x1, y1);
+            drawCtx.lineTo(x2, y2);
+            drawCtx.stroke();
+
+            drawCtx.restore();
+            saveDrawingState();
+        }
+
+        function drawGlow(x, y, color, size) {
+            drawCtx.save();
+            drawCtx.fillStyle = color;
+            drawCtx.globalAlpha = 0.3 * opacity;
+            drawCtx.shadowBlur = size * 3;
+            drawCtx.shadowColor = color;
+            drawCtx.beginPath();
+            drawCtx.arc(x, y, size, 0, Math.PI * 2);
+            drawCtx.fill();
+            drawCtx.restore();
+        }
+
+        function saveDrawingState() {
+            if (drawingHistory.length > 50) drawingHistory.shift();
+            if (drawingHistory.length === 0 || drawingHistory[drawingHistory.length - 1] !== drawCanvas.toDataURL()) {
+                drawingHistory.push(drawCanvas.toDataURL());
+            }
+        }
+
+        function undoDrawing() {
+            if (drawingHistory.length > 1) {
+                drawingHistory.pop();
+                const img = new Image();
+                img.src = drawingHistory[drawingHistory.length - 1];
+                img.onload = () => {
+                    drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+                    drawCtx.drawImage(img, 0, 0);
+                };
+            }
+        }
+
+        function clearCanvas() {
+            drawCtx.fillStyle = '#0a0a0a';
+            drawCtx.fillRect(0, 0, drawCanvas.width, drawCanvas.height);
+            drawingHistory = [];
+            lastX = 0;
+            lastY = 0;
+            saveDrawingState();
+        }
+
+        function generateSymmetry() {
+            const pattern = generatePattern(canvasWidth / 2, canvasHeight / 2, 80);
+            saveDrawingState();
+
+            for (let i = 0; i < symmetryLines; i++) {
+                const angle = (Math.PI * 2 / symmetryLines) * i;
+                drawRotatedPattern(pattern, canvasWidth / 2, canvasHeight / 2, angle);
+            }
+        }
+
+        function generatePattern(cx, cy, size) {
+            const points = [];
+            for (let i = 0; i < 12; i++) {
+                const angle = (Math.PI * 2 / 12) * i;
+                const r = size * (0.5 + 0.5 * Math.sin(i * Math.PI / 6));
+                points.push({
+                    x: cx + r * Math.cos(angle),
+                    y: cy + r * Math.sin(angle)
+                });
+            }
+            return points;
+        }
+
+        function drawRotatedPattern(pattern, cx, cy, angle) {
+            drawCtx.save();
+            drawCtx.strokeStyle = currentColor;
+            drawCtx.lineWidth = brushSize;
+            drawCtx.lineCap = 'round';
+
+            for (let i = 0; i < pattern.length; i++) {
+                const p1 = pattern[i];
+                const p2 = pattern[(i + 1) % pattern.length];
+
+                const x1 = cx + (p1.x - cx) * Math.cos(angle) - (p1.y - cy) * Math.sin(angle);
+                const y1 = cy + (p1.x - cx) * Math.sin(angle) + (p1.y - cy) * Math.cos(angle);
+                const x2 = cx + (p2.x - cx) * Math.cos(angle) - (p2.y - cy) * Math.sin(angle);
+                const y2 = cy + (p2.x - cx) * Math.sin(angle) + (p2.y - cy) * Math.cos(angle);
+
+                drawCtx.beginPath();
+                drawCtx.moveTo(x1, y1);
+                drawCtx.lineTo(x2, y2);
+                drawCtx.stroke();
+            }
+
+            drawCtx.restore();
+        }
+
+        function loadPattern() {
+            alert('点击生成对称按钮自动生成对称纹样');
+        }
+
+        function savePNG() {
+            const link = document.createElement('a');
+            link.download = `剪纸-${Date.now()}.png`;
+            link.href = drawCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function saveSVG() {
+            const svgNS = "http://www.w3.org/2000/svg";
+            const svg = document.createElementNS(svgNS, "svg");
+            svg.setAttribute("width", canvasWidth);
+            svg.setAttribute("height", canvasHeight);
+            svg.setAttribute("viewBox", `0 0 ${canvasWidth} ${canvasHeight}`);
+
+            const bgRect = document.createElementNS(svgNS, "rect");
+            bgRect.setAttribute("width", canvasWidth);
+            bgRect.setAttribute("height", canvasHeight);
+            bgRect.setAttribute("fill", "#1a1a2e");
+            svg.appendChild(bgRect);
+
+            const imgData = drawCtx.getImageData(0, 0, canvasWidth, canvasHeight);
+            const data = imgData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] > 128) {
+                    const pixelIndex = i / 4;
+                    const x = pixelIndex % canvasWidth;
+                    const y = Math.floor(pixelIndex / canvasWidth);
+
+                    const rect = document.createElementNS(svgNS, "rect");
+                    rect.setAttribute("x", x);
+                    rect.setAttribute("y", y);
+                    rect.setAttribute("width", "1");
+                    rect.setAttribute("height", "1");
+                    rect.setAttribute("fill", `rgb(${data[i]},${data[i+1]},${data[i+2]})`);
+                    svg.appendChild(rect);
+                }
+            }
+
+            const svgString = new XMLSerializer().serializeToString(svg);
+            const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `剪纸-${Date.now()}.svg`;
+            link.click();
+        }
+
+        function updateUI() {
+            if (cameraRunning) {
+                document.getElementById('detectionStatus').textContent = '✓ 运行中';
+                document.getElementById('detectionStatus').style.color = '#00ff00';
+            }
+        }
+
+        function animate() {
+            uiCtx.clearRect(0, 0, uiCanvas.width, uiCanvas.height);
+            
+            if (cameraRunning && video.readyState === video.HAVE_ENOUGH_DATA) {
+                bgCtx.save();
+                bgCtx.translate(canvasWidth, 0);
+                bgCtx.scale(-1, 1);
+                bgCtx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
+                bgCtx.restore();
+            }
+            
+            if (rightHandLandmarks) {
+                drawHandSkeleton(rightHandLandmarks, uiCtx, '#ff1493');
+            }
+            if (leftHandLandmarks) {
+                drawHandSkeleton(leftHandLandmarks, uiCtx, '#00ffff');
+            }
+
+            updateUI();
+            if (cameraRunning && !isProcessing && hands) {
+                isProcessing = true;
+                hands.send({image: video}).then(() => {
+                    isProcessing = false;
+                }).catch(err => {
+                    isProcessing = false;
+                });
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        function drawHandSkeleton(landmarks, ctx, color) {
+            const connections = [
+                [0, 1], [1, 2], [2, 3], [3, 4],
+                [0, 5], [5, 6], [6, 7], [7, 8],
+                [0, 9], [9, 10], [10, 11], [11, 12],
+                [0, 13], [13, 14], [14, 15], [15, 16],
+                [0, 17], [17, 18], [18, 19], [19, 20]
+            ];
+
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+
+            for (const [start, end] of connections) {
+                const p1 = landmarks[start];
+                const p2 = landmarks[end];
+
+                ctx.beginPath();
+                ctx.moveTo(p1.x * canvasWidth, p1.y * canvasHeight);
+                ctx.lineTo(p2.x * canvasWidth, p2.y * canvasHeight);
+                ctx.stroke();
+            }
+
+            for (let i = 0; i < landmarks.length; i++) {
+                const p = landmarks[i];
+                ctx.fillStyle = i === 8 ? '#ffff00' : color;
+                ctx.beginPath();
+                ctx.arc(p.x * canvasWidth, p.y * canvasHeight, 4, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+
+        initialize();
+    </script>
+</body>
+</html>
